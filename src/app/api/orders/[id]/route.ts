@@ -5,17 +5,19 @@ import { authOptions } from "@/lib/auth";
 
 export async function PATCH(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
-  const { id } = await context.params;
-  const session = (await getServerSession(authOptions)) as any;
+  const { id } = context.params;
 
-  if (!session?.user)
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const isAdmin = (session.user as any).role === "ADMIN";
-  if (!isAdmin)
+  if (!isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await request.json();
   const allowed = new Set([
@@ -25,6 +27,7 @@ export async function PATCH(
     "DELIVERED",
     "CANCELLED",
   ]);
+
   const status = String(body.status || "");
   if (!allowed.has(status)) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
@@ -33,13 +36,15 @@ export async function PATCH(
   try {
     const updated = await prisma.order.update({
       where: { id: Number(id) },
-      data: { status: status as any },
+      data: { status },
     });
-
 
     return NextResponse.json(updated);
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Database update failed" }, { status: 500 });
+    console.error("Order update error:", error);
+    return NextResponse.json(
+      { error: "Database update failed" },
+      { status: 500 }
+    );
   }
 }
