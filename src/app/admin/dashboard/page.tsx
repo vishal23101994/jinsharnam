@@ -30,7 +30,7 @@ export default function AdminDashboard() {
       router.push("/auth/login");
       return;
     }
-    if (session.user.role !== "admin") {
+    if (session?.user?.role !== "admin") {
       router.push("/");
     }
   }, [session, sessionStatus, router]);
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!session || session.user.role !== "admin") {
+  if (!session || session.user?.role !== "admin") {
     return null;
   }
 

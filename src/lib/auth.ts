@@ -15,33 +15,61 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
-        const user = await prisma.user.findUnique({ where: { email: credentials.email } });
+
+        // Find user by email
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
+
         if (!user) return null;
 
-        const isValid = await bcrypt.compare(credentials.password, user.password);
+        // ✅ Compare hashed password using bcrypt
+        const isValid = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+
         if (!isValid) return null;
 
-        return user;
+        // ✅ Convert numeric ID to string (NextAuth requires string IDs)
+        return {
+          id: user.id.toString(),
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        };
       },
     }),
   ],
+
+  // ✅ Use JWT-based sessions
   session: { strategy: "jwt" },
+
+  // ✅ Optional custom login page
   pages: { signIn: "/auth/login" },
+
+  // ✅ Handle token and session values
   callbacks: {
     async jwt({ token, user }) {
+      // Attach user data to the token when first signed in
       if (user) {
         token.id = user.id;
         token.role = user.role;
       }
       return token;
     },
+
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id;
-        session.user.role = token.role;
+      // Ensure session.user exists before assigning
+      if (token && session.user) {
+        // Type-safe assignments with explicit casting
+        (session.user as any).id = token.id as string;
+        (session.user as any).role = token.role as string;
       }
       return session;
     },
   },
+
+  // ✅ Add your secret from .env
   secret: process.env.NEXTAUTH_SECRET,
 };

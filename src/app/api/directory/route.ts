@@ -1,4 +1,4 @@
-  import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
@@ -7,14 +7,15 @@ export async function GET(request: Request) {
 
   try {
     // Query PostgreSQL via Prisma
-    const members = await prisma.member.findMany({
+    const members = await prisma.directoryMember.findMany({
       where: {
         OR: [
           { fullName: { contains: q, mode: "insensitive" } },
-          { city: { contains: q, mode: "insensitive" } },
+          { email: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+          { organization: { contains: q, mode: "insensitive" } },
         ],
       },
-      orderBy: { fullName: "asc" },
     });
 
     // ✅ Return directly as an array
