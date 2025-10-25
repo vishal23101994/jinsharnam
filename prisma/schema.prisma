@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+}
+
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("user") // can be "user" or "admin"
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  sku         String   @unique
+  title       String
+  description String?
+  priceCents  Int
+  tag         String?
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  orders      OrderItem[]
+}
+
+model Order {
+  id          Int         @id @default(autoincrement())
+  totalCents  Int
+  status      String       @default("created")
+  createdAt   DateTime     @default(now())
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id         Int      @id @default(autoincrement())
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    Int
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  String
+  quantity   Int       @default(1)
+  priceCents Int
+}
+
+model DirectoryMember {
+  id          Int      @id @default(autoincrement())
+  fullName    String
+  gender      String?   // "Male" or "Female"
+  email       String?   @unique
+  phone       String?   @unique
+  address     String?
+  city        String?
+  state       String?
+  pincode     String?
+  organization String?  // e.g. "Jinsharnam Media"
+  role        String?   // e.g. "Member", "Volunteer", "Coordinator"
+  createdAt   DateTime  @default(now())
+}
