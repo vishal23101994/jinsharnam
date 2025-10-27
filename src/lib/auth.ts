@@ -3,9 +3,11 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { Role } from "@prisma/client";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
+
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -16,60 +18,49 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials.password) return null;
 
-        // Find user by email
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
 
-        if (!user) return null;
+        if (!user) throw new Error("No user found with that email");
 
-        // ✅ Compare hashed password using bcrypt
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.password
-        );
+        const isValid = await bcrypt.compare(credentials.password, user.password);
+        if (!isValid) throw new Error("Invalid password");
 
-        if (!isValid) return null;
-
-        // ✅ Convert numeric ID to string (NextAuth requires string IDs)
+        // ✅ Convert numeric ID to string for NextAuth
         return {
-          id: user.id.toString(),
+          id: String(user.id),
           name: user.name,
           email: user.email,
-          role: user.role,
+          role: user.role as Role,
         };
       },
     }),
   ],
 
-  // ✅ Use JWT-based sessions
   session: { strategy: "jwt" },
 
-  // ✅ Optional custom login page
-  pages: { signIn: "/auth/login" },
-
-  // ✅ Handle token and session values
   callbacks: {
     async jwt({ token, user }) {
-      // Attach user data to the token when first signed in
       if (user) {
         token.id = user.id;
-        token.role = user.role;
+        token.role = (user as any).role;
       }
       return token;
     },
 
     async session({ session, token }) {
-      // Ensure session.user exists before assigning
-      if (token && session.user) {
-        // Type-safe assignments with explicit casting
-        (session.user as any).id = token.id as string;
-        (session.user as any).role = token.role as string;
+      if (token) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as Role;
       }
       return session;
     },
   },
 
-  // ✅ Add your secret from .env
+  pages: {
+    signIn: "/auth/login",
+  },
+
   secret: process.env.NEXTAUTH_SECRET,
 };

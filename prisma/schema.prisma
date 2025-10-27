@@ -12,6 +12,16 @@ enum Role {
   ADMIN
 }
 
+enum OrderStatus {
+  PENDING
+  CREATED
+  PROCESSING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
 model User {
   id            Int       @id @default(autoincrement())
   name          String
@@ -42,13 +52,15 @@ model Product {
 }
 
 model Order {
-  id          Int       @id @default(autoincrement())
-  userId      Int
-  totalCents  Int
-  status      String    @default("created")
-  createdAt   DateTime  @default(now())
-  orderItems  OrderItem[]
-  user        User      @relation(fields: [userId], references: [id])
+  id            Int           @id @default(autoincrement())
+  userId        Int
+  totalCents    Int
+  status        OrderStatus    @default(CREATED)
+  paymentId     String?
+  paymentStatus String?
+  createdAt     DateTime       @default(now())
+  orderItems    OrderItem[]
+  user          User           @relation(fields: [userId], references: [id])
 }
 
 model OrderItem {
@@ -60,3 +72,16 @@ model OrderItem {
   product    Product  @relation(fields: [productId], references: [id])
   order      Order    @relation(fields: [orderId], references: [id])
 }
+
+model DirectoryMember {
+  id              Int       @id @default(autoincrement())
+  name            String
+  organization    String?
+  address         String?
+  phone           String?
+  dateOfBirth     DateTime?
+  dateOfMarriage  DateTime?
+  email           String    @unique
+  createdAt       DateTime  @default(now())
+}
+

@@ -9,9 +9,9 @@ import { authOptions } from "@/lib/auth";
  */
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> } // ✅ FIXED TYPE
 ) {
-  const { id } = context.params;
+  const { id } = await context.params; // ✅ AWAIT the params promise
 
   try {
     // ✅ Verify session

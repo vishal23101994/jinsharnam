@@ -12,9 +12,10 @@ export async function POST(req: Request) {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) return new Response("Invalid credentials", { status: 401 });
 
-    if (user.role !== "admin") {
+    if (user.role !== "ADMIN") {
       return new Response("Access denied. Admins only.", { status: 403 });
     }
+
 
     return new Response(
       JSON.stringify({

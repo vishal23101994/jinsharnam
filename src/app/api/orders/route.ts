@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { OrderStatus } from "@prisma/client";
 
 // Utility to require authentication
 async function requireSession() {
@@ -23,15 +24,15 @@ export async function GET() {
   const isAdmin = (session.user as any).role === "ADMIN";
 
   const orders = await prisma.order.findMany({
-    where: isAdmin ? undefined : { userId: Number(session.user.id) },
     include: {
-      user: isAdmin
+      user: session?.user?.role === "ADMIN"
         ? { select: { id: true, name: true, email: true } }
         : false,
-      items: { include: { product: true } },
+      orderItems: { include: { product: true } }, // ✅ Corrected relation name
     },
     orderBy: { createdAt: "desc" },
   });
+
 
   return NextResponse.json(orders);
 }
@@ -82,10 +83,10 @@ export async function POST(req: Request) {
     data: {
       userId: Number(session.user.id),
       totalCents,
-      status: "PENDING",
-      items: { create: verified },
+      status: OrderStatus.CREATED, // ✅ use enum instead of string
+      orderItems: { create: verified }, // ✅ fixed relation name
     },
-    include: { items: { include: { product: true } } },
+    include: { orderItems: { include: { product: true } } }, // ✅ fixed relation name
   });
 
   return NextResponse.json(order, { status: 201 });

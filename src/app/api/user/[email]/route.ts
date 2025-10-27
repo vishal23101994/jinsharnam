@@ -1,12 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
-  req: Request,
-  { params }: { params: { email: string } }
+  request: NextRequest,
+  context: { params: Promise<{ email: string }> } // ✅ FIXED: params is a Promise
 ) {
+  const { email } = await context.params; // ✅ Await the params promise
+
   try {
-    const { email } = params;
+    if (!email || typeof email !== "string") {
+      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
       select: {

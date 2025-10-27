@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { OrderStatus } from "@prisma/client";
 
 /**
  * PATCH /api/orders/[id]
@@ -9,9 +10,9 @@ import { authOptions } from "@/lib/auth";
  */
 export async function PATCH(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = context.params;
+  const { id } = await context.params;
 
   // 🧭 Authenticate session
   const session = await getServerSession(authOptions);
@@ -26,18 +27,11 @@ export async function PATCH(
 
   // 🧾 Parse request body
   const body = await request.json();
-  const status = String(body.status || "").trim().toUpperCase();
+  const statusInput = String(body.status || "").trim().toUpperCase();
 
-  // ✅ Allowed status values
-  const ALLOWED_STATUSES = [
-    "PENDING",
-    "PROCESSING",
-    "SHIPPED",
-    "DELIVERED",
-    "CANCELLED",
-  ] as const;
-
-  if (!ALLOWED_STATUSES.includes(status as any)) {
+  // ✅ Validate against actual Prisma enum values
+  const allowedStatuses = Object.keys(OrderStatus) as Array<keyof typeof OrderStatus>;
+  if (!allowedStatuses.includes(statusInput as keyof typeof OrderStatus)) {
     return NextResponse.json({ error: "Invalid order status" }, { status: 400 });
   }
 
@@ -56,10 +50,10 @@ export async function PATCH(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
-    // 🔄 Update order status
+    // 🔄 Update order status using enum type
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-      data: { status },
+      data: { status: OrderStatus[statusInput as keyof typeof OrderStatus] }, // ✅ Correct cast
       include: {
         user: { select: { id: true, name: true, email: true } },
         orderItems: {
@@ -71,14 +65,11 @@ export async function PATCH(
     });
 
     return NextResponse.json({
-      message: "Order status updated successfully",
+      message: "Order updated successfully",
       order: updatedOrder,
     });
-  } catch (error) {
-    console.error("Order update error:", error);
-    return NextResponse.json(
-      { error: "Database update failed" },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error("Error updating order:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
