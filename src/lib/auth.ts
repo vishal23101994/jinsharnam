@@ -5,8 +5,11 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 
+// 🔐 Ensure PrismaAdapter runs only if DATABASE_URL exists
+const adapter = process.env.DATABASE_URL ? PrismaAdapter(prisma) : undefined;
+
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter,
 
   providers: [
     CredentialsProvider({
@@ -27,7 +30,7 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) throw new Error("Invalid password");
 
-        // ✅ Convert numeric ID to string for NextAuth
+        // ✅ Convert ID to string (NextAuth requires string IDs)
         return {
           id: String(user.id),
           name: user.name,
@@ -48,7 +51,6 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id as string;
@@ -60,6 +62,7 @@ export const authOptions: NextAuthOptions = {
 
   pages: {
     signIn: "/auth/login",
+    error: "/auth/error", // ✅ custom error route handler
   },
 
   secret: process.env.NEXTAUTH_SECRET,
