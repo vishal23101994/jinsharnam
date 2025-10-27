@@ -1,71 +1,80 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+
+const prisma = new PrismaClient();
 
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "text" },
+        email: { label: "Email", type: "text", placeholder: "example@gmail.com" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Please enter both email and password");
+        }
 
+        // 🔍 Find the user by email
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
         });
-        if (!user) return null;
 
+        if (!user) {
+          throw new Error("No user found with that email");
+        }
+
+        // 🔐 Compare passwords
         const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
+        if (!isValid) {
+          throw new Error("Invalid password");
+        }
 
+        // ✅ Return the user object to NextAuth
         return {
-          id: user.id.toString(),
+          id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role,
+          role: user.role, // "USER" | "ADMIN"
         };
       },
     }),
   ],
 
-  pages: {
-    signIn: "/auth/login", // ✅ ensure no "/auth/admin"
-  },
-
-  session: {
-    strategy: "jwt",
-  },
+  session: { strategy: "jwt" },
 
   callbacks: {
+    // 🧠 Store role + id in the JWT
     async jwt({ token, user }) {
-      // Store user role in token (if available)
-      if (user) token.role = user.role;
+      if (user) {
+        token.id = user.id;
+        token.role = user.role;
+      }
       return token;
     },
-    async session({ session, token }) {
-      // Add role to session
-      if (token?.role && session.user) {
-        session.user.role = token.role as string;
-      }
 
-      return session;
-    },
-    async redirect({ url, baseUrl }) {
-      // Redirect admin to dashboard, user to home
-      if (url.startsWith("/")) {
-        if (url.includes("admin")) return `${baseUrl}/admin/dashboard`;
-        return `${baseUrl}/`;
+    // 💾 Attach JWT data to the session
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id as number;
+        session.user.role = token.role as "USER" | "ADMIN";
       }
-      return url;
+      return session;
     },
   },
 
+  // 📄 Custom pages
+  pages: {
+    signIn: "/auth/login",
+  },
+
+  // 🛠️ Optional: Secret (recommended for JWT encryption)
   secret: process.env.NEXTAUTH_SECRET,
 };
 
+// ✅ Export both API handlers and authOptions
 const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+export { handler as GET, handler as POST, authOptions };

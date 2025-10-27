@@ -25,13 +25,14 @@ export default function NewsTicker() {
           will-change-transform
         "
       >
-        {[...Array(2)].map((dup) => (
-          <div key={dup} className="flex items-center gap-12">
+        {[...Array(2)].map((_, idx) => (
+          <div key={`ticker-dup-${idx}`} className="flex items-center gap-12">
             {messages.map((msg, i) => (
-              <span key={`${dup}-${i}`}>{msg}</span>
+              <span key={`msg-${idx}-${i}`}>{msg}</span>
             ))}
           </div>
         ))}
+
       </div>
     </div>
   );

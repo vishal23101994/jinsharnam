@@ -16,7 +16,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // Logged in but not an admin → redirect to home
-    if (token.role !== "admin") {
+    if (token.role !== "ADMIN") {  // ✅ FIXED here
       return NextResponse.redirect(new URL("/", req.url));
     }
   }

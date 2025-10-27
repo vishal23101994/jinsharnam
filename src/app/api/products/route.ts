@@ -1,126 +1,74 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 
+/**
+ * GET /api/products
+ * Fetch all products (active only)
+ */
 export async function GET() {
-  return NextResponse.json([
-    {
-      id: "1",
-      title: "Bottle Ka Tufan",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/01-Bottle-ka-tufan.jpg",
-    },
-    {
-      id: "2",
-      title: "Haaye Budhapa",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/02-haay-bhudapa.jpg",
-    },
-    {
-      id: "3",
-      title: "Gar Bhai Na Hota",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/03-gar-bhai-na-hota.jpg",
-    },
-    {
-      id: "4",
-      title: "Kanya Daan",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/04-kanya-daan.jpg",
-    },
-    {
-      id: "5",
-      title: "Prem Jivan Ka Mahamantra",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/05-Prem-Jivan-ka-mhamantra.jpg",
-    },
-    {
-      id: "6",
-      title: "Aatmahatya",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/06-aatmhatya.jpg",
-    },
-    {
-      id: "7",
-      title: "Bhookh",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/07-bhookh.jpg",
-    },
-    {
-      id: "8",
-      title: "Zindagi Ka Naam Dosti",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/08-jindgi-ka-naam-dosti.jpg",
-    },
-    {
-      id: "9",
-      title: "Lohe Ki Deewar",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/09-lohe-ki-divar.jpg",
-    },
-    {
-      id: "10",
-      title: "Mithi Vani",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/10-mithi-vani.jpg",
-    },
-    {
-      id: "11",
-      title: "Samasya",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/11-samasya.jpg",
-    },
-    {
-      id: "12",
-      title: "Meri Nazro Me Azadi",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/12-meri-mazro-m-azadi.jpg",
-    },
-    {
-      id: "13",
-      title: "Sant Sadhana",
-      category: "Book",
-      description: "An introduction to Jain dharma and principles.",
-      priceCents: 29900,
-      imageUrl: "/images/Products/Books/13-sant-sadhu.jpg",
-    },
-    {
-      id: "14",
-      title: "Pulak Sagar Ji Divine Wallpapaer",
-      category: "Calendar",
-      description: "Pulak Sagar Ji Spiritual and Divine Wallpaper",
-      priceCents: 19900,
-      imageUrl: "/images/Products/Wallpapers/1.jpeg",
-    },
-    {
-      id: "15",
-      title: "Pulak Sagar Ji Thoughts",
-      category: "Poster",
-      description: "A serene artwork perfect for home or meditation space.",
-      priceCents: 14900,
-      imageUrl: "/images/Products/Thoughts/20.jpg",
-    },
-  ]);
+  try {
+    const products = await prisma.product.findMany({
+      where: { active: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // If DB is empty, fallback to initial seed data (optional)
+    if (!products.length) {
+      return NextResponse.json({
+        message: "No products found. Please add new products.",
+        products: [],
+      });
+    }
+
+    return NextResponse.json(products);
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/products
+ * Add new product (Admin only)
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user || session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { title, description, category, priceCents, imageUrl, sku, active } = body;
+
+    if (!title || !priceCents) {
+      return NextResponse.json(
+        { error: "Title and price are required." },
+        { status: 400 }
+      );
+    }
+
+    const newProduct = await prisma.product.create({
+      data: {
+        id: sku || crypto.randomUUID(),
+        sku: sku || `SKU-${Date.now()}`,
+        title,
+        description,
+        priceCents: Number(priceCents),
+        imageUrl: imageUrl || null,
+        active: active ?? true,
+      },
+    });
+
+    return NextResponse.json(
+      { message: "Product created successfully", product: newProduct },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error("Error adding product:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
 }

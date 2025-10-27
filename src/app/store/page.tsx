@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -11,7 +12,7 @@ declare global {
 type Product = {
   id: string;
   title: string;
-  category: "Book" | "Calendar" | "Poster";
+  category?: "Book" | "Calendar" | "Poster";
   description?: string;
   priceCents: number;
   imageUrl?: string;
@@ -31,15 +32,37 @@ export default function StorePage() {
 
   // 🧭 Fetch products
   useEffect(() => {
-    setLoading(true);
-    fetch("/api/products")
-      .then((r) => r.json())
-      .then((data) => {
-        setItems(data);
-        setFiltered(data);
-      })
-      .finally(() => setLoading(false));
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/products");
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setItems(data);
+          setFiltered(data);
+        } else if (Array.isArray(data.products)) {
+          setItems(data.products);
+          setFiltered(data.products);
+        }
+      } catch (err) {
+        console.error("Error fetching products:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
   }, []);
+
+  // 🧾 Load cart from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("jinsharnam_cart");
+    if (saved) setCart(JSON.parse(saved));
+  }, []);
+
+  // 💾 Save cart to localStorage
+  useEffect(() => {
+    localStorage.setItem("jinsharnam_cart", JSON.stringify(cart));
+  }, [cart]);
 
   // 🔍 Filter logic
   useEffect(() => {
@@ -71,41 +94,50 @@ export default function StorePage() {
   const removeFromCart = (id: string) =>
     setCart((prev) => prev.filter((p) => p.id !== id));
 
+  const totalAmount = cart.reduce((sum, p) => sum + p.priceCents * p.qty, 0);
+
+  // 💳 Razorpay Checkout
   const handleCheckout = async () => {
     if (cart.length === 0) return alert("Your cart is empty!");
 
-    const res = await fetch("/api/checkout/create-order", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: cart }),
-    });
-    const data = await res.json();
+    try {
+      const res = await fetch("/api/checkout/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart }),
+      });
 
-    if (!data?.id) return alert("Error creating order");
+      const data = await res.json();
+      if (!data?.id) throw new Error("Failed to create order");
 
-    const options = {
-      key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-      amount: cart.reduce((sum, p) => sum + p.priceCents * p.qty, 0),
-      currency: "INR",
-      name: "Jinsharnam Media",
-      description: "Order Checkout",
-      order_id: data.id,
-      handler: () => (window.location.href = "/store/success"),
-      theme: { color: "#CFAF72" },
-    };
-    const rzp = new window.Razorpay(options);
-    rzp.open();
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: totalAmount,
+        currency: "INR",
+        name: "Jinsharnam Media",
+        description: "Order Checkout",
+        order_id: data.id,
+        handler: () => {
+          localStorage.removeItem("jinsharnam_cart");
+          window.location.href = "/store/success";
+        },
+        theme: { color: "#CFAF72" },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (error) {
+      console.error("Checkout error:", error);
+      alert("Error during checkout. Please try again.");
+    }
   };
 
-  // 💫 Loading skeleton
+  // 💫 Loading state
   if (loading) {
     return (
-      <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white text-gray-800 p-10 grid gap-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+      <main className="min-h-screen bg-gradient-to-b from-amber-50 to-white grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-10">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="animate-pulse bg-white rounded-3xl shadow-md p-5 h-72"
-          >
+          <div key={i} className="animate-pulse bg-white rounded-3xl shadow p-5 h-72">
             <div className="bg-gray-200 h-40 w-full rounded-xl mb-4"></div>
             <div className="bg-gray-200 h-4 w-3/4 mb-2"></div>
             <div className="bg-gray-200 h-4 w-1/2"></div>
@@ -119,79 +151,41 @@ export default function StorePage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-amber-50 via-amber-100/40 to-white text-gray-800">
-      {/* 🌟 Hero Section */}
-      <section className="relative w-full h-[480px] flex items-center justify-center text-center overflow-hidden">
+      {/* 🏪 Hero */}
+      <section className="relative w-full h-[420px] flex items-center justify-center text-center overflow-hidden">
         <img
           src="/images/redtextured.jpg"
           alt="Jinsharnam Media Store"
           className="absolute inset-0 w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/50 to-transparent" />
+        <div className="absolute inset-0 bg-black/60" />
         <div className="relative z-10 px-6">
-          <h1 className="text-4xl md:text-5xl font-serif text-amber-100 font-semibold drop-shadow-lg mb-4">
-            Welcome to Jinsharnam Media Store
+          <h1 className="text-4xl md:text-5xl font-serif text-amber-100 font-semibold mb-3">
+            Jinsharnam Media Store
           </h1>
-          <p className="max-w-2xl mx-auto text-lg md:text-xl text-amber-50 drop-shadow-md">
-            Explore spiritual books, divine calendars, and peaceful posters that
-            enlighten your path.
+          <p className="text-amber-50 text-lg mb-6">
+            Explore spiritual books, divine calendars & peaceful posters.
           </p>
           <a
             href="#products"
-            className="mt-8 inline-block bg-amber-600 text-white px-6 py-3 rounded-full font-medium hover:bg-amber-700 transition-all shadow-md"
+            className="inline-block bg-amber-600 text-white px-6 py-3 rounded-full font-medium hover:bg-amber-700 transition"
           >
             Shop Now
           </a>
         </div>
       </section>
 
-      {/* ✨ Featured Section */}
-      {featured.length > 0 && (
-        <section className="max-w-7xl mx-auto px-4 py-12">
-          <h2 className="text-3xl font-serif text-center text-amber-800 mb-8">
-            Featured Products
-          </h2>
-          <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {featured.map((p) => (
-              <div
-                key={p.id}
-                className="rounded-2xl bg-gradient-to-br from-white to-amber-50/30 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 overflow-hidden"
-              >
-                <img
-                  src={p.imageUrl || "/images/default.jpg"}
-                  alt={p.title}
-                  className="w-full h-44 object-cover"
-                />
-                <div className="p-4 text-center">
-                  <h3 className="text-lg text-amber-800 font-semibold mb-1">
-                    {p.title}
-                  </h3>
-                  <p className="text-amber-700 font-medium">
-                    ₹ {(p.priceCents / 100).toFixed(2)}
-                  </p>
-                  <button
-                    onClick={() => addToCart(p)}
-                    className="mt-3 w-full rounded-full bg-amber-600 text-white py-2 text-sm hover:bg-amber-700 transition-all"
-                  >
-                    Add to Cart
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* 🧭 Filter + Search */}
-      <section id="products" className="max-w-7xl mx-auto px-4 py-12">
+      <section id="products" className="max-w-7xl mx-auto px-4 py-10">
         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
           <div className="flex flex-wrap justify-center gap-3">
             {["All", "Book", "Calendar", "Poster"].map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-5 py-2 rounded-full border text-sm transition-all duration-300 ${
+                className={`px-5 py-2 rounded-full border text-sm transition-all ${
                   selectedCategory === cat
-                    ? "bg-amber-600 text-white shadow-md"
+                    ? "bg-amber-600 text-white shadow"
                     : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
                 }`}
               >
@@ -208,61 +202,56 @@ export default function StorePage() {
           />
         </div>
 
-        {/* 🛒 Product Grid (Smaller, Cleaner Cards) */}
+        {/* 🛒 Product Grid */}
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((p) => (
-            <div
-              key={p.id}
-              className="border rounded-2xl bg-gradient-to-br from-white to-amber-50/40 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 p-4"
-            >
-              <Link href={`/store/${p.id}`}>
-                <img
-                  src={p.imageUrl || '/images/default.jpg'}
-                  alt={p.title}
-                  className="rounded-xl w-full h-48 object-cover cursor-pointer hover:opacity-90 transition-all"
-                />
-              </Link>
-
-              <div className="mt-3 text-center">
+          {filtered.length === 0 ? (
+            <p className="col-span-full text-center text-amber-700">
+              No products found.
+            </p>
+          ) : (
+            filtered.map((p) => (
+              <div
+                key={p.id}
+                className="border rounded-2xl bg-gradient-to-br from-white to-amber-50/40 shadow-sm hover:shadow-xl transition-all p-4"
+              >
                 <Link href={`/store/${p.id}`}>
-                  <h3 className="font-serif text-lg text-amber-800 font-medium hover:underline">
-                    {p.title}
-                  </h3>
+                  <img
+                    src={p.imageUrl || "/images/default.jpg"}
+                    alt={p.title}
+                    className="rounded-xl w-full h-48 object-cover mb-3 hover:opacity-90 transition"
+                  />
                 </Link>
 
-                {p.description && (
-                  <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                    {p.description}
-                  </p>
-                )}
-
-                <p className="mt-2 text-lg text-amber-700 font-semibold">
+                <h3 className="font-serif text-lg text-amber-800 font-medium text-center">
+                  {p.title}
+                </h3>
+                <p className="text-center text-amber-700 font-semibold mt-1">
                   ₹ {(p.priceCents / 100).toFixed(2)}
                 </p>
 
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => addToCart(p)}
-                    className="flex-1 rounded-full bg-amber-600 text-white py-2 text-sm hover:bg-amber-700 transition-all shadow-sm"
+                    className="flex-1 rounded-full bg-amber-600 text-white py-2 text-sm hover:bg-amber-700 transition"
                   >
                     Add to Cart
                   </button>
                   <Link
                     href={`/store/${p.id}`}
-                    className="flex-1 rounded-full border border-amber-600 text-amber-700 py-2 text-sm hover:bg-amber-50 transition-all text-center"
+                    className="flex-1 text-center rounded-full border border-amber-600 text-amber-700 py-2 text-sm hover:bg-amber-50 transition"
                   >
                     View
                   </Link>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </section>
 
       {/* 🛍️ Cart Drawer */}
       <div
-        className={`fixed top-0 right-0 w-80 h-full bg-white shadow-2xl z-50 transform transition-transform ${
+        className={`fixed top-0 right-0 w-80 h-full bg-white shadow-2xl z-50 transform transition-transform duration-300 ${
           isCartOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -308,12 +297,11 @@ export default function StorePage() {
         {cart.length > 0 && (
           <div className="p-4 border-t">
             <p className="text-right text-lg font-semibold text-amber-800 mb-3">
-              Total: ₹{" "}
-              {(cart.reduce((s, i) => s + i.priceCents * i.qty, 0) / 100).toFixed(2)}
+              Total: ₹ {(totalAmount / 100).toFixed(2)}
             </p>
             <button
               onClick={handleCheckout}
-              className="w-full rounded-full bg-amber-600 text-white py-2 hover:bg-amber-700 transition-all"
+              className="w-full rounded-full bg-amber-600 text-white py-2 hover:bg-amber-700 transition"
             >
               Checkout
             </button>
@@ -321,10 +309,10 @@ export default function StorePage() {
         )}
       </div>
 
-      {/* Floating Cart Button (above back-to-top arrow) */}
+      {/* Floating Cart Button */}
       <button
         onClick={() => setIsCartOpen(true)}
-        className="fixed bottom-20 right-6 bg-amber-600 text-white rounded-full p-4 shadow-lg hover:bg-amber-700 transition-all z-[60]"
+        className="fixed bottom-20 right-6 bg-amber-600 text-white rounded-full p-4 shadow-lg hover:bg-amber-700 transition z-[60]"
       >
         🛒 ({cart.reduce((s, i) => s + i.qty, 0)})
       </button>
